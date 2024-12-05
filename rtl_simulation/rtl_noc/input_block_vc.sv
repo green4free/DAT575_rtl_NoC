@@ -196,8 +196,8 @@ module input_block_vc #(
 				lfsr[31:1] <= lfsr[30:0];
 				lfsr[0] <= ~(^{lfsr[31], lfsr[21], lfsr[1], lfsr[0]});
 			end
-		localparam logic [DIRECTION_BITS-1:0] in_port = LOCAL_PORT;
-		rc #(.in_port(in_port)) rc_i (
+		localparam RANDOM_WIDTH = 9;
+		rc #(.random_width(RANDOM_WIDTH)) rc_i (
 			.LOCAL_X(LOCAL_X),
 			.LOCAL_Y(LOCAL_Y),
 			.dst_x(dst_x[vcn]),
@@ -205,7 +205,7 @@ module input_block_vc #(
 			.out_vc_free(out_vc_free),
 			.ovc_credits_count_r(ovc_credits_count_r),
 			.rc_out(rc_w[vcn][2:0]),
-			.random(lfsr[0])
+			.random(lfsr[RANDOM_WIDTH-1:0])
 		);
 		
 		
@@ -216,8 +216,11 @@ module input_block_vc #(
 				vc_allocated_id_r[vcn] <= '0;
 			end else begin
 				p_state_r[vcn] <= n_state[vcn];
-				if(p_state_r[vcn] == RC)
+				if(p_state_r[vcn] == RC) begin
 					rc_r[vcn] <= rc_w[vcn];
+					if (rc_w[vcn] == W)
+						assert (|{LOCAL_PORT==E, LOCAL_PORT==R, LOCAL_PORT==DI}) else $error("Never turn towords west.");
+				end
 				if(p_state_r[vcn] == VA && vc_allocated[vcn]) begin
 					vc_allocated_id_r[vcn] <= vc_allocated_id[vcn];
 				end

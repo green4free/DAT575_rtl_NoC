@@ -19,8 +19,8 @@ use work.router_pkg_vhdl.all;
 
 entity rc is
    generic (
-    mode : integer := 2;
-    in_port : dir_t := E
+    mode : integer := 1;
+    random_width : integer := 8
     );
    port (
     -- Input current location of the packet header
@@ -35,7 +35,7 @@ entity rc is
     -- You can check the signal types in packages/router_pkg_vhdl.vhdl
 	out_vc_free : in out_vc_free_t;                     -- This signal is set if an output VC is free. It is accessed by specifying the output port and output VC-id which is being checked. E.g. out_vc_free[N][0] to check if output VC-0 in the N direction is free.
 	ovc_credits_count_r : in ovc_credits_array_t;       -- This signal specifies available credits in an output VC. It is accessed by specifying the output port and output VC-id which is being checked. E.g. ovc_credits_count_r[N][0] will give the number of available credits in VC-0 of the output port N.
-    random : in std_logic;
+    random : in std_logic_vector(random_width-1 downto 0);
     -- The direction the input packet should take
     rc_out  : out dir_t
     );
@@ -45,69 +45,81 @@ end entity rc;
 architecture behavioral of rc is
     signal xy_out, yx_out : dir_t;
     signal out0, out1 : dir_t;
-    signal two_choices : std_logic; 
+    signal two_choices : std_logic;
 
+    signal lx_s, ly_s, dx_s, dy_s, diff_x, diff_y: signed(DIM_BITS downto 0);
+    signal x_zero, x_neg, y_zero, y_neg: boolean;
 begin
-    xy_proc : process(LOCAL_X, LOCAL_Y, dst_x, dst_y)
+
+    lx_s <= signed('0' & LOCAL_X);
+    ly_s <= signed('0' & LOCAL_Y);
+    dx_s <= signed('0' & dst_x);
+    dy_s <= signed('0' & dst_y);
+
+    diff_x <= lx_s - dx_s;
+    diff_y <= ly_s - dy_s;
+
+    x_neg <= diff_x(DIM_BITS) = '1';
+    y_neg <= diff_y(DIM_BITS) = '1';
+    x_zero <= diff_x = 0;
+    y_zero <= diff_y = 0;
+
+
+    xy_proc : process(x_neg, y_neg, x_zero, y_zero)
     begin
-        if unsigned(dst_x) > unsigned(LOCAL_X) then
-            xy_out <= E;
-        elsif unsigned(dst_x) < unsigned(LOCAL_X) then
-            xy_out <= W;
-        elsif unsigned(dst_y) > unsigned(LOCAL_Y) then
-            xy_out <= S;
-        elsif unsigned(dst_y) < unsigned(LOCAL_Y) then
-            xy_out <= N;
+        if not x_zero then
+            if x_neg then
+                xy_out <= E;
+            else
+                xy_out <= W;
+            end if;
         else
-            xy_out <= R;
+            if not y_zero then
+                if y_neg then
+                    xy_out <= S;
+                else
+                    xy_out <= N;
+                end if;
+            else
+                xy_out <= R;
+            end if;
         end if;
     end process xy_proc;
 
-    yx_proc : process(LOCAL_X, LOCAL_Y, dst_x, dst_y)
+    yx_proc : process(x_neg, y_neg, x_zero, y_zero)
     begin
-        if unsigned(dst_y) > unsigned(LOCAL_Y) then
-            yx_out <= S;
-        elsif unsigned(dst_y) < unsigned(LOCAL_Y) then
-            yx_out <= N;
-        elsif unsigned(dst_x) > unsigned(LOCAL_X) then
-            yx_out <= E;
-        elsif unsigned(dst_x) < unsigned(LOCAL_X) then
-            yx_out <= W;
+        if not y_zero then
+            if y_neg then
+                yx_out <= S;
+            else
+                yx_out <= N;
+            end if;
         else
-            yx_out <= R;
+            if not x_zero then
+                if x_neg then
+                    yx_out <= E;
+                else
+                    yx_out <= W;
+                end if;
+            else
+                yx_out <= R;
+            end if;
         end if;
     end process yx_proc;
 
     
-        in_port_check: if in_port = E or in_port = R or in_port = DI generate
-            west_first_west: process(xy_out, yx_out) begin
-                out1 <= yx_out;
-                if xy_out = W or yx_out = W then
-                    two_choices <= '0';
-                    out0 <= W;
-                else 
-                    two_choices <= '1';
-                    out0 <= xy_out;
-                end if;
-            end process west_first_west;
-        else generate
-            west_first_not_west: process(xy_out, yx_out) begin
-                out1 <= yx_out;
-                if xy_out = W then
-                    two_choices <= '0';
-                    out0 <= yx_out;
-                elsif yx_out = W then
-                    two_choices <= '0';
-                    out0 <= xy_out;
-                else
-                    two_choices <= '1';
-                    out0 <= xy_out;
-                end if;
-            end process west_first_not_west;
-        end generate;
+    west_first_west: process(xy_out, yx_out) begin
+        out1 <= yx_out;
+        if xy_out = W or yx_out = W then
+            two_choices <= '0';
+            out0 <= W;
+        else 
+            two_choices <= '1';
+            out0 <= xy_out;
+        end if;
+    end process west_first_west;
 
-
-        decision_mode: if mode = 0 generate
+        decision_mode: if mode = 0 or mode = 3 generate
             credits_block: block
                 constant sum_width : integer := clog2_vhdl(NUM_VCS * (2**CREDIT_CTR_WIDTH - 1) + 1);
 		        type credits_sum_arr_t is array (0 to NUM_PORTS-1) of unsigned(sum_width - 1 downto 0);
@@ -137,20 +149,21 @@ begin
                     end generate inner_loop;
                     
                 end generate array_stuff;
-
-                output_p: process (two_choices, credits_sum_arr, out0, out1)
+                
+                wr_or_not: if mode = 0 generate
+                    rc_out <= out0 when (credits_sum_arr(to_integer(unsigned(out0))) >= credits_sum_arr(to_integer(unsigned(out1)))) or (two_choices = '0') else out1;
+                else generate
+                    signal c : std_logic ;
                 begin
-                    if two_choices = '1' then
-                        if credits_sum_arr(to_integer(unsigned(out0))) > credits_sum_arr(to_integer(unsigned(out1))) then
-                            rc_out <= out0;
-                        else
-                            rc_out <= out1;
-                        end if;
-                    else
-                        rc_out <= out0;
-                    end if;
-                end process output_p;
+                    pick_random: entity work.weighted_choice generic map (R_width => random_width, W_width => sum_width) port map (
+                        R => unsigned(random),
+                        w1 => credits_sum_arr(to_integer(unsigned(out0))),
+                        w2 => credits_sum_arr(to_integer(unsigned(out1))),
+                        choice => c
+                    );
 
+                    rc_out <= out1 when (c and two_choices) = '1' else out0; 
+                end generate wr_or_not;
             end block credits_block;
 
         elsif mode = 1 generate
@@ -182,28 +195,47 @@ begin
                     end generate inner_loop;
                     free_vcs_sum_arr(dir) <= adder_tree_func(free_vcs_1d);
                 end generate array_stuff;
-
-                output_p: process (two_choices, free_vcs_sum_arr, out0, out1)
-                begin
-                    if two_choices = '1' then
-                        if free_vcs_sum_arr(to_integer(unsigned(out0))) > free_vcs_sum_arr(to_integer(unsigned(out1))) then
-                            rc_out <= out0;
-                        else
-                            rc_out <= out1;
-                        end if;
-                    else
-                        rc_out <= out0;
-                    end if;
-                end process output_p;
+                
+                rc_out <= out0 when (free_vcs_sum_arr(to_integer(unsigned(out0))) >= free_vcs_sum_arr(to_integer(unsigned(out1)))) or (two_choices = '0') else out1;
 
             end block vcs_block;
         
         elsif mode = 2 generate
-            rc_out <= out1 when (random and two_choices) = '1' else out0; 
-        
+            rc_out <= out1 when (random(0) and two_choices) = '1' else out0; 
         else generate
             rc_out <= xy_out;
         end generate;
 
 
 end architecture behavioral;
+
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity weighted_choice is
+    generic (
+        R_width : integer := 8;
+        W_width : integer := 8
+    );
+    port (
+        R : in unsigned(R_width-1 downto 0);
+        w1, w2 : in unsigned(W_width-1 downto 0);
+        choice : out std_logic
+    );
+    end entity;
+
+architecture behavioral of weighted_choice is
+    signal W : unsigned(W_width downto 0);
+    signal right_side, left_side : unsigned(R_width+W_width downto 0);
+begin
+
+
+W <= ('0'&w1) + ('0'&w2);
+right_side <= R * W;
+left_side <= shift_left(resize(w1, R_width+W_width+1),R_width) - w1;
+choice <= '1' when (right_side >= left_side) and (w2 /= 0) else '0';
+
+end architecture;
