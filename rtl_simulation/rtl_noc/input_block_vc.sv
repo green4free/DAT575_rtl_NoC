@@ -1,6 +1,9 @@
 `include "router_pkg.sv"		//contains the definition of _DEBUG_
 import router_pkg::*;
 
+`include "tb_pkg.sv"
+import tb_pkg::*;
+
 module input_block_vc #(
 	parameter dir_t LOCAL_PORT = W	
 	) (
@@ -197,7 +200,7 @@ module input_block_vc #(
 				lfsr[0] <= ~(^{lfsr[31], lfsr[21], lfsr[1], lfsr[0]});
 			end
 		localparam RANDOM_WIDTH = 9;
-		rc #(.random_width(RANDOM_WIDTH)) rc_i (
+		rc #(.random_width(RANDOM_WIDTH), .mode(RC_MODE)) rc_i (
 			.LOCAL_X(LOCAL_X),
 			.LOCAL_Y(LOCAL_Y),
 			.dst_x(dst_x[vcn]),

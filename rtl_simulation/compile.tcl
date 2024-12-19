@@ -8,9 +8,11 @@ set vlog_suppress "-suppress 2583,13314"
 set vlog_flags "-incr -quiet"
 
 
+
 # PACKAGES
 vlog {*}$vlog_suppress $pkgs_dir/router_pkg.sv
 vcom $pkgs_dir/router_pkg_vhdl.vhdl
+vlog {*}$vlog_suppress {*}$vlog_flags +incdir+$incldir $pkgs_dir/tb_pkg.sv
 
 # NOC RTL
 vcom -2008 $rtl_noc_dir/rc.vhdl
@@ -32,7 +34,6 @@ vlog {*}$vlog_suppress {*}$vlog_flags +incdir+$incldir $rtl_noc_dir/data_web.sv
 vlog {*}$vlog_suppress {*}$vlog_flags +incdir+$incldir $rtl_noc_dir/noc2d_vc.sv
 
 # TESTBENCH
-vlog {*}$vlog_suppress {*}$vlog_flags +incdir+$incldir $tb_dir/tb_pkg.sv
 vlog {*}$vlog_suppress {*}$vlog_flags +incdir+$incldir $tb_dir/tb.sv
 vlog {*}$vlog_suppress {*}$vlog_flags +incdir+$incldir $tb_dir/pkt_gen.sv
 vlog {*}$vlog_suppress {*}$vlog_flags +incdir+$incldir $tb_dir/pkt_queue.sv

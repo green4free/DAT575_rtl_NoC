@@ -12,14 +12,14 @@ package tb_pkg;
 	//-----------MAKE CHANGES IN THE FOLLOWING-----------
 	
 	
-	localparam traffic_trace_file = "stim1.txt";
+	localparam traffic_trace_file = "{{ trace_file }}";
 	localparam WARMUP_PHASE_CYCLES = 500;
-	localparam MEASUREMENT_PHASE_CYCLES = 5000;
+	localparam MEASUREMENT_PHASE_CYCLES = {{ measurement_cycles }};
 	localparam COOLDOWN_PHASE_CYCLES = 500;
 	
 	localparam int unsigned CLK_PRD = 1000;		//NoC clock (ps)
-	localparam int unsigned GEN_CLK_PRD = 40;	//Traffic generator clock (ps)
-	
+	localparam int unsigned GEN_CLK_PRD = {{ gen_clk_prd }};	//Traffic generator clock (ps)
+	localparam integer RC_MODE = {{ rc_mode }};
 	
 	//-----------DO NOT MAKE CHANGES IN THE FOLLOWING-----------
 	

@@ -3,10 +3,10 @@ function generate_stim_files()
 	MAX_X = 8;						% Number of columns
 	MAX_Y = 8;						% Number of rows
 	ACTIVE_NODES = MAX_X * MAX_Y;	% Number of active nodes that can inject traffic in the NoC. If fewer than MAX_X*MAX_Y, then active nodes are sleected randomly
-	PKTS_PER_SRC = 1000; 			% packets per active master node
-	TRAFFIC_PTRN = 'uniform_rand';	% traffic pattern
+	PKTS_PER_SRC = 3000; 			% packets per active master node
+	TRAFFIC_PTRN = 'transpose';	% traffic pattern
 	TRAFFIC_PTRN_DEGREE = 1;
-	AVG_PKT_PRD = [8000];			% following is for an XxY NoC
+	AVG_PKT_PRD = [100];			% following is for an XxY NoC
 	
 	STIM_FILE_COUNT = 1;    		% number of stimulus files to be generated, in case AVG_PKT_PRD is a vector
 	initial_file_id = 0;			% the file name stim{file_id}.txt. file_id starts from initial_file_id
